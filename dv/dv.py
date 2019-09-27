@@ -16,8 +16,7 @@ import multiprocessing
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 
 
-DV_LOCATION = os.path.dirname(os.path.realpath(__file__))
-WWW_LOCATION = os.path.join(os.path.dirname(DV_LOCATION), "www")
+WWW_LOCATION = os.path.join(os.path.dirname(os.path.realpath(__file__)),"www")
 
 
 class Server(SimpleHTTPRequestHandler):

@@ -72,14 +72,15 @@ def parseArgs():
 
     args = parser.parse_args()
     args.root = os.path.abspath(args.directory)
+    
+    # Fix if user puts "/" at the end of filepath:
+    if args.root.endswith(os.path.sep):
+        args.root = args.root[:-1]
 
     if args.save_and_host:
         args.save = args.save_and_host
     if args.save:
         args.save = os.path.realpath(args.save)
-
-    if args.root.endswith(os.path.sep):
-        args.root = args.root[:-1]
 
     if not os.path.exists(args.root):
         sys.exit("{} does not exist".format(args.root))
@@ -111,6 +112,14 @@ def getRootBasedToken():
 
 def getToken():
     raise NotImplementedError("getToken should be overriden by a token generation method")
+
+
+def getBaseName(path):
+    # Fix for windows if path is dir:
+    if path.endswith(":"):
+        return path
+    
+    return os.path.basename(path)
 
 
 def scanDir(in_queue, out_queue):
@@ -153,7 +162,7 @@ def scaffoldDir(path, scaffold, depth=1):
     if depth > collection_vars["tree_depth"]:
         collection_vars["tree_depth"] = depth
 
-    base_path = os.path.basename(path)
+    base_path = getBaseName(path)
 
     new_node = {"name": base_path, "size": 0, "count": 0, "children": {}}
     if(args.modtime):
@@ -176,15 +185,8 @@ def scaffoldDir(path, scaffold, depth=1):
             pass
 
 
-def getRootDir(root):
-    if root.count(os.path.sep) < 2:
-        return root
-    else:
-        return os.path.dirname(root)
-
-
 def joinNode(node):
-    path_reduced = node[0].replace(root_dir, os.path.basename(root_dir), 1)
+    path_reduced = node[0].replace(root_dir, root_name, 1)
     path_parts = ["root"] + path_reduced.split(os.path.sep)
     
     current = scaffold
@@ -292,6 +294,10 @@ if __name__ == "__main__":
     multiprocessing.freeze_support()
     args = parseArgs()
 
+    if args.verbose:
+        print("Scanning directory {}".format(args.root))
+        print(args)
+
     if args.save and not os.path.exists(WWW_LOCATION):
         sys.exit("Web dir '{}' not found".format(WWW_LOCATION))
 
@@ -304,7 +310,8 @@ if __name__ == "__main__":
     work_queue = manager.Queue()
     done_queue = manager.Queue()
 
-    root_dir = getRootDir(args.root)
+    root_dir = args.root
+    root_name = getBaseName(root_dir)
 
     processes = []
     for proc in range(args.processes):

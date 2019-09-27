@@ -53,7 +53,8 @@ def parseArgs():
         "fade": "If passed, the 'fade' flag will make directories in the generated plot appear more gray if their files haven't been touched for a long time",
         "save": "A directory containing the generated plot and web page will be placed on disk at the specified location, after the scan finishes",
         "save_and_host": "The same as -s, but after scanning, dv will start a server to serve the newly generated plot",
-        "port": "If using --save-and-host, specifies the port of the dv webserver. Defaults to 8000"
+        "port": "If using --save-and-host, specifies the port of the dv webserver. Defaults to 8000",
+        "verbose": "Output more info"
     })
 
     parser = argparse.ArgumentParser()
@@ -67,26 +68,15 @@ def parseArgs():
     parser.add_argument("-sh", "--save-and-host", help=HELP.save_and_host)
     parser.add_argument("--port", default=8000, type=int, help=HELP.port)
     parser.add_argument("--multiprocessing-fork", help=argparse.SUPPRESS)
+    parser.add_argument("-v", "--verbose", action="store_true", help=HELP.verbose)
 
     args = parser.parse_args()
-    args.root = args.directory
+    args.root = os.path.abspath(args.directory)
 
     if args.save_and_host:
         args.save = args.save_and_host
     if args.save:
         args.save = os.path.realpath(args.save)
-
-    args.drive_letter = ""
-    if re.match(r"[A-Z]:\\", args.root):
-        # On windows, save drive letter
-        split_root = args.root.split("\\", 1)
-        args.drive_letter = split_root[0]
-        args.root = "\\" + split_root[1]
-
-    if args.root == os.path.sep:
-        args.root = "{0}.{0}".format(os.path.sep)
-    else:
-        args.root = os.path.abspath(args.root)
 
     if args.root.endswith(os.path.sep):
         args.root = args.root[:-1]
@@ -123,7 +113,7 @@ def getToken():
     raise NotImplementedError("getToken should be overriden by a token generation method")
 
 
-def scanDir(in_queue, out_queue, drive_letter):
+def scanDir(in_queue, out_queue):
     while 1:
         total_bytes = 0
         total_files = 0
@@ -138,7 +128,7 @@ def scanDir(in_queue, out_queue, drive_letter):
             return
 
         try:
-            item_gen = os.scandir(drive_letter + path)
+            item_gen = os.scandir(path)
         except (FileNotFoundError, PermissionError):
             continue
 
@@ -156,15 +146,10 @@ def scanDir(in_queue, out_queue, drive_letter):
             except (FileNotFoundError, PermissionError):
                 pass
 
-        if drive_letter:
-            path = path.replace(drive_letter, "", 1)
         out_queue.put([path, total_bytes, total_files, newest_time])
 
 
 def scaffoldDir(path, scaffold, depth=1):
-    if args.drive_letter:
-        path = path.replace(args.drive_letter, "", 1)
-
     if depth > collection_vars["tree_depth"]:
         collection_vars["tree_depth"] = depth
 
@@ -177,7 +162,7 @@ def scaffoldDir(path, scaffold, depth=1):
     scaffold["children"][base_path] = new_node
 
     try:
-        item_gen = os.scandir(args.drive_letter + path)
+        item_gen = os.scandir(path)
     except Exception as e:
         return
 
@@ -198,18 +183,10 @@ def getRootDir(root):
         return os.path.dirname(root)
 
 
-def getRootCount(root):
-    part_count = root.count(os.path.sep)
-    root_segment = os.path.sep + "root"
-    if part_count >= 2:
-        return root_segment
-    else:
-        return root_segment + args.root
-
-
 def joinNode(node):
-    node[0] = root_append + node[0].replace(root_dir, "", 1)
-    path_parts = node[0].split(os.path.sep)[1:]
+    path_reduced = node[0].replace(root_dir, os.path.basename(root_dir), 1)
+    path_parts = ["root"] + path_reduced.split(os.path.sep)
+    
     current = scaffold
     for depth, part in enumerate(path_parts):
         if depth + 1 > args.depth:
@@ -278,13 +255,13 @@ def setScaffoldMetadata():
     scaffold["scan_time"] = int(time.time())
     scaffold["mtime_on"] = args.modtime
     scaffold["path_sep"] = os.path.sep
-    scaffold["drive_letter"] = args.drive_letter
+    scaffold["drive_letter"] = "" # Backwards compatibility
 
     scaffold["fade_on"] = args.fade
     scaffold["oldest_dir"] = collection_vars["oldest_dir"]
     scaffold["newest_dir"] = collection_vars["newest_dir"]
 
-    scaffold["fs_total_bytes"] = shutil.disk_usage(args.drive_letter + args.root).total
+    scaffold["fs_total_bytes"] = shutil.disk_usage(args.root).total
 
     return scaffold
 
@@ -328,18 +305,17 @@ if __name__ == "__main__":
     done_queue = manager.Queue()
 
     root_dir = getRootDir(args.root)
-    root_append = getRootCount(args.root)
 
     processes = []
     for proc in range(args.processes):
-        new_proc = multiprocessing.Process(target=scanDir, args=(work_queue, done_queue, args.drive_letter, ))
+        new_proc = multiprocessing.Process(target=scanDir, args=(work_queue, done_queue, ))
         processes.append(new_proc)
         new_proc.daemon = True
         new_proc.start()
 
     collection_vars = {"tree_depth": 0, "oldest_dir": time.time(), "newest_dir": 0}
     scaffold = {"root": {"name": "root", "size": 0, "mtime": 0, "count": 0, "children": {}}}
-    scaffoldDir(args.drive_letter + args.root, scaffold["root"])
+    scaffoldDir(args.root, scaffold["root"])
 
     for proc in range(args.processes):
         work_queue.put("__DONE__")

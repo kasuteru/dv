@@ -28,3 +28,5 @@ If on windows, head over to the "release" section and get the latest windows bui
 ```bash
 dv.exe <directory-to-scan> --save-and-host <directory-to-store-plot>
 ```
+
+Edited...

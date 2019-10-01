@@ -3,13 +3,13 @@ from setuptools import setup
 
 setup(
     name = "dv",
-    version = "0.0.4",
-    author = "Various",
-    author_email = "a@g.de",
+    version = "0.0.5",
+    author = "Thomas Kastl, Daniel Dohnalek",
+    author_email = "",
     description = ("Visualize folder layout"),
     license = "MIT",
-    keywords = "example documentation tutorial",
-    url = "tbd",
+    keywords = "Disk usage visualization in Python",
+    url = "",
     packages=['dv'],
     long_description="Long: TODO",
     classifiers=[

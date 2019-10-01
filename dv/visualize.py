@@ -11,8 +11,18 @@ import pandas as pd
 from collections import namedtuple
 import os
 import glob
+import math
+
 import plotly.graph_objects as go
 
+def convert_size(size_bytes):
+   if size_bytes == 0:
+       return "0B"
+   size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+   i = int(math.floor(math.log(size_bytes, 1024)))
+   p = math.pow(1024, i)
+   s = round(size_bytes / p, 1)
+   return "%s %s" % (s, size_name[i])
 
 def get_most_recent_json_log(path_logs):
     # Get most recent logs folder:
@@ -31,7 +41,7 @@ def get_most_recent_json_log(path_logs):
                          "Maybe indexing not finished / crashed?")
     return path_zipped_json
 
-def read_json_log_to_dataframe(path_logs):
+def read_json_log_to_dataframe(path_logs, maxlevels=None):
     path_zipped_json = get_most_recent_json_log(path_logs)
     
     with gzip.open(path_zipped_json) as file:
@@ -46,6 +56,7 @@ def read_json_log_to_dataframe(path_logs):
     FolderEntry = namedtuple("FolderEntry", ["parentpath", "abspath", 
                                              "name", "size", "count", "level"])
     
+    # Recursive function crawls all possible folder paths:
     def getIndices(node, parentpath, parentlevel):
         # Collect info about this folder:
         abspath = parentpath + "/" + node["name"]
@@ -70,31 +81,50 @@ def read_json_log_to_dataframe(path_logs):
         return subfolder_entries
     
     list_of_entries = getIndices(headnode, "", 0)
+    df = pd.DataFrame(list_of_entries)
+    
+    # Filter maximum levels if set to reduce size of output:
+    if maxlevels is not None:
+      df = df.query("level <= {}".format(maxlevels))
+    
+    # Get size strings (kB, MB, GB...) for easier reading:
+    df["size_string"] = df["size"].apply(convert_size)
+    return(df)
 
-    return(pd.DataFrame(list_of_entries))
 
-
-def visualize_folder_scan(save_directory, max_levels=5):
+def visualize_folder_scan(save_directory, maxlevels=5, showlevels=3, agg_type="size"):
     df_data = read_json_log_to_dataframe(save_directory)
     
+    # Reconstruct scan path from df:
+    top_level_path = df_data.query("parentpath==''")["abspath"].iloc[0]
+    
+    # Collect arguments to figure constructor:
+    fig_args = {
+        "ids": df_data.abspath,
+        "labels": df_data.name,
+        "parents": df_data.parentpath,
+        "values": df_data["size"],
+        "hovertext": df_data.name,
+        "hoverinfo": "text",
+        "domain": dict(column=0),
+        "branchvalues": "total",
+        "textinfo": "none",
+        "customdata": df_data["size_string"],
+        "hovertemplate": "%{label}: %{customdata}  <extra>%{id}</extra>",
+        "name": "filesize_chart",
+        "maxdepth": showlevels
+        }
+    
+    # Switch visualization to file count per folder if requested:
+    if agg_type=="count":
+      fig_args["values"]=df_data["count"]
+      fig_args["hovertemplate"]= "%{label}: %{value} Files  <extra>%{id}</extra>"
+      fig_args["customdata"]= None
+      
+    # Create and show figure:
     fig = go.Figure()
-    
-    fig.add_trace(go.Sunburst(
-        ids=df_data.abspath,
-        labels=df_data.name,
-        parents=df_data.parentpath,
-        values = df_data["size"],
-        hovertext = df_data.name,
-        hoverinfo = "text",
-        domain=dict(column=0),
-        branchvalues = "total",
-        maxdepth = max_levels,
-        textinfo = "none"
-    ))
-    
-    fig.update_layout(
-        grid= dict(columns=1, rows=1),
-        margin = dict(t=0, l=0, r=0, b=0)
-    )
-    
+    fig.add_trace(go.Sunburst(**fig_args))
+    fig.update_layout(margin = dict(t=40, l=0, r=0, b=0),
+                      width=800, height=600,
+                      title = {"text": "Disk usage visualization of {}".format(top_level_path)})
     fig.show()

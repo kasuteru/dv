@@ -27,5 +27,5 @@ def index_folder(directory, save_directory, depth=10):
         sys.stdout.write(line)
 
 
-def visualize_folder(save_directory, max_levels=5):
-    visualize.visualize_folder_scan(save_directory,  max_levels=5)
+def visualize_folder(save_directory, maxlevels=5, showlevels=3, agg_type="size"):
+    visualize.visualize_folder_scan(save_directory,  maxlevels, showlevels, agg_type)

@@ -2,14 +2,6 @@ import subprocess
 import sys
 import os
 import multiprocessing
-
-# Relative imports are weird for packages???
-if __package__ is None or __package__ == '':
-    # uses current directory visibility
-    import visualize
-else:
-    # uses current package visibility
-    from . import visualize
     
 # Function to call over command line:
 def index_folder(directory, save_directory, depth=10):
@@ -28,4 +20,13 @@ def index_folder(directory, save_directory, depth=10):
 
 
 def visualize_folder(save_directory, maxlevels=5, showlevels=3, agg_type="size"):
-    visualize.visualize_folder_scan(save_directory,  maxlevels, showlevels, agg_type)
+    # Lazy import because visualization package is not needed for everything
+    # and creates additional dependencies, e.g. plotly.
+    # Relative imports are weird for packages.
+    if __package__ is None or __package__ == '':
+        # uses current directory visibility
+        import visualize
+    else:
+        # uses current package visibility
+        from . import visualize
+    visualize.visualize_folder_scan(save_directory,  maxlevels=maxlevels, showlevels=showlevels, agg_type=agg_type)

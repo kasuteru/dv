@@ -117,7 +117,7 @@ def visualize_folder_scan(save_directory, maxlevels=5, showlevels=3, agg_type="s
         "customdata": df_data["size_string"],
         "hovertemplate": "%{label}: %{customdata}  <extra>%{id}</extra>",
         "name": "filesize_chart",
-        "maxdepth": showlevels
+        "maxdepth": showlevels+1 # Increase by 1 because first "level" is just the top level folder.
         }
     
     # Switch visualization to file count per folder if requested:

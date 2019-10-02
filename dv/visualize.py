@@ -12,6 +12,7 @@ from collections import namedtuple
 import os
 import glob
 import math
+from datetime import datetime
 
 import plotly.graph_objects as go
 
@@ -89,11 +90,15 @@ def read_json_log_to_dataframe(path_logs, maxlevels=None):
     
     # Get size strings (kB, MB, GB...) for easier reading:
     df["size_string"] = df["size"].apply(convert_size)
-    return(df)
+    
+    # Read scan time for additional feedback:
+    scan_time = datetime.utcfromtimestamp(jsonfile["scan_time"]).strftime('%Y-%m-%d %H:%M:%S')
+                         
+    return(df, scan_time)
 
 
 def visualize_folder_scan(save_directory, maxlevels=5, showlevels=3, agg_type="size"):
-    df_data = read_json_log_to_dataframe(save_directory)
+    df_data, scan_time = read_json_log_to_dataframe(save_directory, maxlevels=maxlevels)
     
     # Reconstruct scan path from df:
     top_level_path = df_data.query("parentpath==''")["abspath"].iloc[0]
@@ -126,5 +131,6 @@ def visualize_folder_scan(save_directory, maxlevels=5, showlevels=3, agg_type="s
     fig.add_trace(go.Sunburst(**fig_args))
     fig.update_layout(margin = dict(t=40, l=0, r=0, b=0),
                       width=800, height=600,
-                      title = {"text": "Disk usage visualization of {}".format(top_level_path)})
+                      title = {"text": "Disk usage visualization of {} @ {}".format(top_level_path,
+                                                                                    scan_time)})
     fig.show()
